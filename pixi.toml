@@ -1,0 +1,77 @@
+[workspace]
+name = "cs220"
+channels = ["conda-forge"]
+version = "1.1.0"
+platforms = [
+  "win-64",
+  "linux-64",
+  "osx-64",
+  "osx-arm64",
+  "linux-aarch64",
+]
+
+[dependencies]
+python = ">=3.14"
+jupyterlab = "*"
+ipykernel = "*"
+pip = "*"
+ipywidgets = "*"
+ipylab = "*"
+matplotlib="*"
+pandas="*"
+requests="*"
+numpy="*"
+beautifulsoup4="*"
+git="*"
+ipynbname = ">=2023.2.0.0,<2024"
+pytz = "==2026.2"
+
+[tasks]
+jupyterlab = "jupyter lab"
+
+_setup-projects = { cmd="bash -lc 'if pwd | grep -qi onedrive; then echo \"Please install pixi and place your pixi.toml outside of OneDrive. Downloading and setting up your projects within OneDrive will lead to many issues later on.\"; exit 1; fi; mkdir -p projects && echo \".\" > projects/.projects_setup_complete'", outputs=["projects/.projects_setup_complete"]}
+
+_setup-lecture = { cmd="git clone --depth 1 --filter=blob:none --sparse https://git.doit.wisc.edu/cdis/cs/courses/cs220/cs220-lecture-material.git && cd cs220-lecture-material && git sparse-checkout set Common f26 && echo '.' > .lecture_setup_complete", outputs=["cs220-lecture-material/.lecture_setup_complete"]}
+
+lecture = { cmd="cd cs220-lecture-material && git stash push --include-untracked -m pixi-lecture-autostash && git pull --no-rebase -X ours && (git stash apply || git checkout --theirs . && git add -A)", depends-on=["_setup-lecture"] }
+
+
+get_project = {cmd = '''
+python -c "import pathlib, urllib.request, zipfile, os, sys
+root = os.path.join(pathlib.Path.cwd(),'projects')
+
+if not os.path.exists(root):
+    os.makedirs(root)
+
+zip_path = pathlib.Path(os.path.join(root,'{{proj_num}}.zip'))  
+try:
+    urllib.request.urlretrieve('https://cs220.cs.wisc.edu/f26_projects/{{proj_num}}.zip', zip_path)
+except urllib.error.HTTPError:
+    print('Project is not yet released')
+    sys.exit()
+
+target = pathlib.Path(os.path.join(root,'{{proj_num}}'))
+i = 2
+while target.exists():
+    target = pathlib.Path(os.path.join(root,f'{{proj_num}}-{i}'))
+    i += 1
+target.mkdir()
+
+zipfile.ZipFile(zip_path).extractall(target)
+zip_path.unlink()
+
+print(f'Your project is placed at : {target}')
+"
+''', depends-on = ["_setup-projects"], args=["proj_num"]}
+
+config-update = { cmd = '''python -c "import pathlib, urllib.request, zipfile, os, sys
+root = os.path.join(pathlib.Path.cwd())
+target = pathlib.Path(os.path.join(root,'pixi.toml'))
+
+try:
+    urllib.request.urlretrieve('https://cs220.cs.wisc.edu/installation_instructions/pixi.toml', target)
+except urllib.error.HTTPError:
+    print('Pixi config could not be updated')
+    sys.exit()
+print(f'Your pixi file has been updated with the latest version from the course site. It is placed at : {target}. Please re-run pixi reinstall to update your environment. If you run into issues, please run pixi clean first and then pixi reinstall again.')"
+'''}
